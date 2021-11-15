@@ -1,6 +1,9 @@
 # Bioleaching of copper-sulfide
 
-(add links to Casas and Dixon... TBC)
+## References
+
+1) https://www.sciencedirect.com/science/article/abs/pii/S1572440999800455
+2) https://www.sciencedirect.com/science/article/abs/pii/S0304386X00001195
 
 ## The model attempts to integrate the following processes:
 
