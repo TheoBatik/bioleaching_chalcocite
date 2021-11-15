@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Nov 12 10:53:03 2021
-
-@author: Theodore B
+Check out findiff python package:
+https://github.com/maroba/findiff
 """
 
 
@@ -22,7 +21,6 @@ L = fd.FinDiff( 0, dt, 1, acc = 6) - 1.05*fd.Identity() # Population Growth, dN/
 
 bc1 = fd.BoundaryConditions(shape)
 bc1[0] = 5
-
 
 f = np.zeros(shape)
 
@@ -52,9 +50,32 @@ u = pde.solve()
 plt.figure()
 plt.plot(t, u)
 
+# Example 3: 2D Heat Conduction with Dirichlet BC's
 
+shape = (100, 100)
+x, y = np.linspace(0, 1, shape[0]), np.linspace(0, 1, shape[1])
+dx, dy = x[1]-x[0], y[1]-y[0]
+X, Y = np.meshgrid(x, y, indexing='ij')
 
-# Example 3: 2D Heat Conduction with Neumann BC's
+L = fd.FinDiff(0, dx, 2) + fd.FinDiff(1, dy, 2)
+f = np.zeros(shape)
+
+T_amb = 500
+bc = fd.BoundaryConditions(shape)
+#bc[:,50] = fd.FinDiff(0, dx, 1), 0 # Neumann BC
+bc[-1, :] = T_amb  # top is at ambiant temp
+bc[0, :] = 0  # base is at absolute zero (for all x)
+#bc[:, 0:5] = T_amb - 200*Y
+bc[:, -1] = -200*Y
+
+pde = fd.PDE(L, f, bc)
+u = pde.solve()
+
+plt.figure()
+plt.imshow(u, interpolation='spline16')
+plt.show()
+
+# Example 4: 2D Heat Conduction with Neumann BC's
 
 shape = (100, 100)
 x, y = np.linspace(0, 1, shape[0]), np.linspace(0, 1, shape[1])
@@ -66,9 +87,9 @@ f = np.zeros(shape)
 
 bc = fd.BoundaryConditions(shape)
 bc[1,:] = fd.FinDiff(0, dx, 1), 0 # Neumann BC
-bc[-1,:] = 300. - 200*Y   # Dirichlet BC
+bc[-1,:] = 300. - 200*Y  # Dirichlet BC
 bc[:, 0] = 300.   # Dirichlet BC
-bc[1:-1, -1] = fd.FinDiff(1, dy, 1), 0  # Neumann BC
+bc[1:-1, -2] = fd.FinDiff(1, dy, 1), 0  # Neumann BC
 
 pde = fd.PDE(L, f, bc)
 u = pde.solve()

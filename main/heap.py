@@ -141,7 +141,7 @@ and temperature T(x, y, t). '''
 # T = np.full(N, 250) * kelvin
 # dt = 5/100*second
 
-# # Reaction rate
+# Reaction rate
 # a_dot = alpha_dot(T, C_L) # outside of the leach method because it will be needed elsewhere
 # alpha_formed = a_dot*dt
 # alpha += alpha_formed
@@ -159,18 +159,33 @@ and temperature T(x, y, t). '''
 
 stk = stack( (10, 10), (11, 21)  )
 DX, DY = space_grain(stk)
-sub_grain = 5
-dx = DX/sub_grain
-dy = DY/sub_grain
+# sub_grain = 5
+# dx = DX/sub_grain
+# dy = DY/sub_grain
 
 # axis 0 = x
 # axis 1 = y
 # axis 2 = t # no need for third access, just use a_dot()
 
 k_B = params['k_B'][0]
-L_EB = k_B * (fd.FinDiff(0, dx, 2) + fd.FinDiff(1, dy, 2 ) )
+Le = k_B * (fd.FinDiff(0, DX, 2) + fd.FinDiff(1, DY, 2 ) )
+shape = N
+f = a_dot.magnitude
 
 
+bc = fd.BoundaryConditions(N)
+bc[0,:] = 200 #fd.FinDiff(0, dx, 1), 0 # Neumann BC
+# bc[-1,:] = 300. - 200*Y   # Dirichlet BC
+# bc[:, 0] = 300.   # Dirichlet BC
+# bc[1:-1, -1] = fd.FinDiff(1, dy, 1), 0  # Neumann BC
+
+pde = fd.PDE(Le, f, bc)
+u = pde.solve()
+
+
+plt.figure()
+plt.imshow(u, interpolation='spline16')
+plt.show()
 
 
 # Variable dictionary: a description of each variable used in the model
