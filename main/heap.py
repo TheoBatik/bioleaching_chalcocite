@@ -6,10 +6,6 @@ import findiff as fd
 # Initialise the standard Pint Unit Registry
 ureg = pint.UnitRegistry()
 
-# Top tips with Pint:
-# Check dimensionality with a.dimensionality
-# Convert units using a.to method, e.g. speed.to('inch/minute')
-
 # Define base units
 meter = ureg.meter
 second = ureg.second
@@ -23,7 +19,23 @@ kJ = ureg.kJ
 area = meter**2
 cube = meter**3
 
-# Attribute of heap: array to keep track of all the variables of time - gets updated with heap.record method...
+##################### Heap Class ######################################
+class Heap():
+    # Class Object Attribute (e.g. attributes belonging to ALL Heaps)
+    c = 'fixed constraints'
+    
+    def __init__(self, substance):
+
+        self.substance = substance
+        
+        
+    def __str__(self):
+        return "Describition of the humple:" 
+
+
+##################### Heap Attributes ######################################
+    
+# array to keep track of all the variables over time - gets updated with heap.record method...
 history = np.empty( (1,3)) 
 
 # Store differential operators in a dictionary?
@@ -64,23 +76,31 @@ dt = 5/100 # input into heap leach method?
 # diffops = { 
 #     'Le':[fd.FinDiff(0, 1)] }
 
+
+##################### Heap Methods #########################################
+
+# Print parameters
 def see_params(values=False):
+    ''' Print a readable list of model parameter names with descriptions (and values if True).''' 
     for key in params:
         print(key, '->', params[key][1])
         if values:
             print('; value =', params[key][0], '\n')
 
-# Define the methods
-
 # Maximum respiration rate of the bacteria 
 def Vm(T):
     ''' The maximum specific bacterial respiration rate as a function of temperature (Vm). 
-    Units are kg's (of liquid Oxygen consumed) per second per number of bacteria per cubic meter. Input must be in Kelvin.'''  
+    Units are kg's (of liquid Oxygen or iron or both?) per second per number of bacteria per cubic meter. Input must be in Kelvin.'''  
     if hasattr(T, 'dimensionality'):
         assert T.dimensionality == kelvin.dimensionality, 'Input T must be in Kelvin!'
         return params['Vm_p1'][0] * T * np.exp( -params['Vm_p2'][0]/T ) /  (1 + np.exp( 236 - params['Vm_p3'][0]/T ) )
     else:
         print('Input T must be in Kelvin!')
+        
+# T = 250*kelvin
+# factor = np.exp( -params['Vm_p2'][0]/T ) /  (1 + np.exp( 236 - params['Vm_p3'][0]/T ) )
+# print(factor, 'vs', params['Vm_p1'][0])
+
 
 # Reaction rate - Michaelis-Menten equation with Oxygen as the limiting substrate 
 def alpha_dot(T, C_L):
@@ -89,12 +109,17 @@ def alpha_dot(T, C_L):
     Valid only when Oxygen is the limiting substrate (i.e. sufficient bacteria and ferrous Fe ions).'''
     if hasattr(C_L, 'dimensionality'):
         assert C_L.dimensionality == params['K_m'][0].dimensionality, 'Input C_L must be in {}!'.format(params['K_m'][0].units)
-        factor = params['sigma_1'][0]*params['X'][0]/(params['rho_B'][0]*params['G^0'][0])
+        factor = params['sigma_1'][0]*params['X'][0]/(params['rho_B'][0]*params['G^0'][0]) # Using G_0 here relates number of bacterial with 
         return factor * Vm(T) * C_L/(params['K_m'][0] + C_L )
     else:
         print('Input C_L must be in {}!'.format(params['K_m'][0].units))
    
-  
+# factor = params['sigma_1'][0]*params['X'][0]/(params['rho_B'][0]*params['G^0'][0])
+# print('factor = ', factor)
+
+
+
+
 # heap takes in a meshgrid of XX, YY,  (this will be useful for plotting surfaces later on)
 def stack( d , N, symmetric = True, info = False ): 
     ''' Returns a numpy.meshgrid with number of lattice nodes set by N 
@@ -102,6 +127,7 @@ def stack( d , N, symmetric = True, info = False ):
     if symmetric:
         x = np.linspace(-d[0]/2, d[0]/2, N[0])
         y = np.linspace(-d[1]/2, d[1]/2, N[1])
+        # update heap size attribute to N
         if info:
             print( '\n Heap succesfully stacked! ')
             print( '\t Shape = ({}, {})'.format(N[0], N[1]) )
@@ -115,9 +141,9 @@ def stack( d , N, symmetric = True, info = False ):
         return np.array( np.meshgrid( x, y , indexing = 'ij') )
     else:
         print('complete non-symmetric version later')
-    
-N = (6, 8)
-d = (5, 7)
+
+N = (21, 21)
+d = (10, 20)
 stk =  stack( d , N )
 
 def space_grain(stack):
@@ -134,20 +160,21 @@ def leach(a_dot, dt):
 ''' Returns alpha (the molar concentration of Cu2S04) at time t = t + Delta_t
 for all heap grid-points (x, y), given liquid oxygen concentration C_L(x, y, t)
 and temperature T(x, y, t). '''
-    
-# C_L = np.full(N, 0.006) * kg/cube
-# CL_mol = C_L/c['M_Ox'][0]/mol # dividing by mol because I still need to figure out what the units of alpha should be....
-# alpha = np.zeros(N) / cube
-# T = np.full(N, 250) * kelvin
-# dt = 5/100*second
+
+
+C_L = np.full(N, 0.006) * kg/cube # N = size of heap
+CL_mol = C_L/c['M_Ox'][0]/mol # dividing by mol because I still need to figure out what the units of alpha should be....
+alpha = np.zeros(N) / cube
+T = np.full(N, 250) * kelvin
+dt = 5/100*second
 
 # Reaction rate
-# a_dot = alpha_dot(T, C_L) # outside of the leach method because it will be needed elsewhere
-# alpha_formed = a_dot*dt
-# alpha += alpha_formed
-# ox_to_alpha = 2.5/2 # Oxygen to Cu2SO4 based on the stoiciometric coefficients
-# # oxygen_lost = ox_to_alpha*alpha_formed
-# CL_mol -= ox_to_alpha*alpha_formed
+a_dot = alpha_dot(T, C_L) # outside of the leach method because it will be needed elsewhere
+alpha_formed = a_dot*dt
+alpha += alpha_formed
+ox_to_alpha = 2.5/2 # Oxygen to Cu2SO4 based on the stoiciometric coefficients
+# oxygen_lost = ox_to_alpha*alpha_formed
+CL_mol -= ox_to_alpha*alpha_formed
 
 
 # for i in range(0,10):
@@ -157,7 +184,7 @@ and temperature T(x, y, t). '''
 #     print('Ox =', CL_mol[0][0])
 
 
-stk = stack( (10, 10), (11, 21)  )
+stk = stack( d, N  )
 DX, DY = space_grain(stk)
 # sub_grain = 5
 # dx = DX/sub_grain
@@ -168,13 +195,21 @@ DX, DY = space_grain(stk)
 # axis 2 = t # no need for third access, just use a_dot()
 
 k_B = params['k_B'][0]
+# Energy Exchange Operator
 Le = k_B * (fd.FinDiff(0, DX, 2) + fd.FinDiff(1, DY, 2 ) )
 shape = N
 f = a_dot.magnitude
 
+# X and Y
+Y = stk[1][0][:]
+print(Y.shape)
+X = stk[1][0][:] ## need to tranpose
+print(X.shape)
 
 bc = fd.BoundaryConditions(N)
 bc[0,:] = 200 #fd.FinDiff(0, dx, 1), 0 # Neumann BC
+bc[:,0] = 40 + 100
+mid = round(N[0]/2)
 # bc[-1,:] = 300. - 200*Y   # Dirichlet BC
 # bc[:, 0] = 300.   # Dirichlet BC
 # bc[1:-1, -1] = fd.FinDiff(1, dy, 1), 0  # Neumann BC
@@ -197,6 +232,14 @@ var_dict = {
     }
 
 
+def gas_flow():
+    pass
+
+def oxygen_balance():
+    pass
+
+def energy_exchange():
+    pass
 
 
 
@@ -216,18 +259,7 @@ def slicer():
 class Heap():
     pass
 
-class Humple():
-    
-    # Class Object Attribute (e.g. attributes belonging to ALL Humples)
-    example = 'constants of nature'
-    
-    def __init__(self, substance):
 
-        self.substance = substance
-        
-        
-    def __str__(self):
-        return "Describition of the humple:" 
 
 
 

@@ -105,3 +105,23 @@ plt.ylabel('{}'.format( alpha_u.units) )
 # alpha_dot increases with increasing T before reaching platau
 # alpha_dot decreasing with decreasing T before reaching platau
 
+## Test 3: Check dimensions of "ratio" 
+
+T = 300*h.kelvin
+C_L = 0.006* h.kg/h.cube
+ratio =  C_L/(h.params['K_m'][0] + C_L )
+print('ratio =', ratio)
+
+
+## Test 4: long-term behaviour of alpha (a)
+
+year = 1 * h.ureg.year
+seconds = year.to('second')
+a_dot = h.alpha_dot(T, C_L)
+a = a_dot * seconds
+
+
+
+
+
+
