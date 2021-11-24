@@ -59,7 +59,6 @@ T = 300*h.kelvin
 C_L = 0.006* h.kg/h.cube
 f = np.full( len(t),  h.alpha_dot(T, C_L).magnitude ) # need .magnitude?
 
-
 # BC's
 bc = fd.BoundaryConditions(shape)
 bc[0] = 0 
@@ -110,18 +109,29 @@ plt.ylabel('{}'.format( alpha_u.units) )
 T = 300*h.kelvin
 C_L = 0.006* h.kg/h.cube
 ratio =  C_L/(h.params['K_m'][0] + C_L )
-print('ratio =', ratio)
+print('ratio (using kg/cube) =', ratio)
 
+# using ppm
+T = 300*h.kelvin
+C_L = 6.5
+k = 1
+ratio =  C_L/(k + C_L )
+print('ratio (using ppm) =', ratio)
+
+# Comments: 
+# ppm vs kg/cube return basically the same ratio
 
 ## Test 4: long-term behaviour of alpha (a)
 
+T = 300*h.kelvin
+C_L = 0.006* h.kg/h.cube
 year = 1 * h.ureg.year
 seconds = year.to('second')
 a_dot = h.alpha_dot(T, C_L)
 a = a_dot * seconds
 
 
-
+# ppm ml/l
 
 
 

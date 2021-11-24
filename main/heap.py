@@ -1,12 +1,17 @@
+##################### IMPORTS ################################################
+
 import numpy as np
-import pint 
+import pint
 import matplotlib.pyplot as plt
 import findiff as fd
+
+
+##################### UNITS ##################################################
 
 # Initialise the standard Pint Unit Registry
 ureg = pint.UnitRegistry()
 
-# Define base units
+# Base units
 meter = ureg.meter
 second = ureg.second
 kelvin = ureg.kelvin
@@ -15,11 +20,16 @@ kg = ureg.kg
 mol = ureg.mol
 kJ = ureg.kJ
 
-# Compound units
+# Derived units
 area = meter**2
 cube = meter**3
+# deg_c = ureg.degree_Celsius 
 
-##################### Heap Class ######################################
+# Conversions
+hour = 1* ureg.hour 
+sec_in_hour = hour.to('seconds')
+
+##################### Heap Class #############################################
 class Heap():
     # Class Object Attribute (e.g. attributes belonging to ALL Heaps)
     c = 'fixed constraints'
@@ -33,7 +43,7 @@ class Heap():
         return "Describition of the humple:" 
 
 
-##################### Heap Attributes ######################################
+##################### Heap Attributes ########################################
     
 # array to keep track of all the variables over time - gets updated with heap.record method...
 history = np.empty( (1,3)) 
@@ -55,7 +65,8 @@ params = {
     'K':[5*10**(-10)/area, 'Bed Permeability'],
     'GCu':[0.5, 'Copper grade: percentage by weight'],
     'G^0':[ 0.63, 'Chalcocite grade: percentage by weight'],
-    'KPY':[0, 'Pyrite factor: kg pyrite leached / kg chalcocite leached'],
+    'G':[ 1.67*kg/(area*sec_in_hour), 'Mass flow rate of dry air per unit area - lowest rate used in Dixon'],
+    'FPY':[0, 'Pyrite factor: kg pyrite leached / kg chalcocite leached'],
     'T_L':[298*kelvin, 'Liquid Temperature'],
     'q_L':[1.4*10**(-6)*cube/(second*area), 'Volume flow rate of Liquid per unit area'],
     'O2g':[0.26*kg/cube, 'Oxygen concentration at T_atmos and P_atmos'],
@@ -64,14 +75,42 @@ params = {
     'Vm_p2':[7000*kelvin, 'Bacterial respiration rate - param 2'],
     'Vm_p3':[74000*kelvin, 'Bacterial respiration rate - param 3'],
     'rho_B':[1800*kg/cube, 'Average density of the ore Bed or dump'],
+    'rho_air':[1.16*kg/cube, 'Average density of the air'],
+    'rho_L':[1050*kg/cube, 'Average density - liquid phase'],
+    'rho_S':[2700*kg/cube, 'Average density - solid phase'],
     'K_m':[10**(-3)*kg/cube, 'Michaelis constant (see Michaelis-Menten equation)'],
     'eps_L':[0.12, 'Volumetric fraction of liquid phase within the ore bed'], # Is this parameter fraction of all matter in ore bed or fraction of the fluid matter only? 
     'eps_g':[0.88, 'Volumetric fraction of gas phase within the ore bed'], # See comment above - i.e. is this deduction valid?
-    'D_g':[1.5*10**(-5)*area/second, 'Diffusion coefficient for oxygen in the has phase'],
-    'k_B':[ 2.1*10**(-3)*kJ/(meter*kelvin*second), 'Thermal conductivity of the ore bed']
+    'D_g':[1.5*10**(-5)*area/second, 'Diffusion coefficient for oxygen in the gas phase'],
+    'k_B':[ 2.1*10**(-3)*kJ/(meter*kelvin*second), 'Thermal conductivity of the ore bed'],
+    'Delta_H_Ch':[-6000*kJ/kg, 'Chalcocite reaction enthalpy'],
+    'Delta_H_Py':[-12600*kJ/kg, 'Pyrite reaction enthalpy'],
+    'ASH_G':[1.0*kJ/(kg*kelvin), 'Average Specific Heat - Gas'],
+    'ASH_L':[4.0*kJ/(kg*kelvin), 'Average Specific Heat - Liquid'],
+    'ASH_S':[1.172*kJ/(kg*kelvin),'Average Specific Heat - Solid'],
+    'ASH_V':[1.1864*kJ/(kg*kelvin), 'Average Specific Heat - Vapour water'],
+    'lambda':[583*kJ/kg, 'Heat of water vapourisation'],
+    'H_air':[0.5, 'Average air humidity', 'Use Antoine equation for more accurate result.'],
+    'Henry_1':[ 21.312  , 'Source 18, 28 in Casas bib' ],
+     'Henry_2':[ 0.784 , 'Source 18, 28 in Casas bib' ],
+     'Henry_3':[ 0.00383 , 'Source 18, 28 in Casas bib' ]
+     #   'Henry_1':[ (21.312 + 274)  , 'Source 18, 28 in Casas bib' ],
+     # 'Henry_2':[ (0.784 + 274)/kelvin , 'Source 18, 28 in Casas bib' ],
+     # 'Henry_3':[ (0.00383 + 274)/(kelvin**2) , 'Source 18, 28 in Casas bib' ]
     }
 
+
+
+    
+h1 = 21.312 
+h2 = 0.784
+h3 = 0.00383
+
+
+
 dt = 5/100 # input into heap leach method? 
+
+
 # Collection of differential operators
 # diffops = { 
 #     'Le':[fd.FinDiff(0, 1)] }
@@ -96,10 +135,14 @@ def Vm(T):
         return params['Vm_p1'][0] * T * np.exp( -params['Vm_p2'][0]/T ) /  (1 + np.exp( 236 - params['Vm_p3'][0]/T ) )
     else:
         print('Input T must be in Kelvin!')
+ 
         
-# T = 250*kelvin
-# factor = np.exp( -params['Vm_p2'][0]/T ) /  (1 + np.exp( 236 - params['Vm_p3'][0]/T ) )
+ 
+# T = 300*kelvin
+# factor = T * np.exp( -params['Vm_p2'][0]/T ) /  (1 + np.exp( 236 - params['Vm_p3'][0]/T ) )
 # print(factor, 'vs', params['Vm_p1'][0])
+# v = Vm(T)
+# print(v)
 
 
 # Reaction rate - Michaelis-Menten equation with Oxygen as the limiting substrate 
@@ -109,7 +152,7 @@ def alpha_dot(T, C_L):
     Valid only when Oxygen is the limiting substrate (i.e. sufficient bacteria and ferrous Fe ions).'''
     if hasattr(C_L, 'dimensionality'):
         assert C_L.dimensionality == params['K_m'][0].dimensionality, 'Input C_L must be in {}!'.format(params['K_m'][0].units)
-        factor = params['sigma_1'][0]*params['X'][0]/(params['rho_B'][0]*params['G^0'][0]) # Using G_0 here relates number of bacterial with 
+        factor = params['sigma_1'][0]*params['X'][0]/(params['rho_B'][0]*params['G^0'][0]) 
         return factor * Vm(T) * C_L/(params['K_m'][0] + C_L )
     else:
         print('Input C_L must be in {}!'.format(params['K_m'][0].units))
@@ -126,7 +169,7 @@ def stack( d , N, symmetric = True, info = False ):
     and spatial dimensions set by d.'''
     if symmetric:
         x = np.linspace(-d[0]/2, d[0]/2, N[0])
-        y = np.linspace(-d[1]/2, d[1]/2, N[1])
+        y = np.linspace(0, d[1], N[1])
         # update heap size attribute to N
         if info:
             print( '\n Heap succesfully stacked! ')
@@ -138,28 +181,48 @@ def stack( d , N, symmetric = True, info = False ):
             print( '\t'*2,  'y_a -> y_b = {} -> {}'.format( -d[1]/2, d[1]/2))
             print( '\t Number of nodes (per dimension):'  )
             print( '\t'*2,  'N = (Nx, Ny , Nt) = {}'.format(N)) 
-        return np.array( np.meshgrid( x, y , indexing = 'ij') )
+        return x, y, np.array( np.meshgrid( x, y , indexing = 'ij') )
     else:
         print('complete non-symmetric version later')
 
-N = (21, 21)
-d = (10, 20)
-stk =  stack( d , N )
-
-def space_grain(stack):
-        Delta_X = abs(stack[0][1][0] - stack[0][0][0])
-        Delta_Y = abs(stack[1][0][0] - stack[1][0][1])
-        return Delta_X, Delta_Y
+def space_grain(mesh):
+        dx = abs(mesh[0][1][0] - mesh[0][0][0])
+        dy = abs(mesh[1][0][0] - mesh[1][0][1])
+        return dx, dy
       
-def plt_stack(stack):
+def plt_mesh(mesh):
     plt.figure()
-    plt.plot(stack[0], stack[1], marker='.', color='k', linestyle='none')
+    plt.plot(mesh[0], mesh[1], marker='.', color='k', linestyle='none')
 
 def leach(a_dot, dt):
     pass
 ''' Returns alpha (the molar concentration of Cu2S04) at time t = t + Delta_t
 for all heap grid-points (x, y), given liquid oxygen concentration C_L(x, y, t)
 and temperature T(x, y, t). '''
+
+
+def dissolve(gas, temp):
+    if hasattr(temp, 'dimensionality'):
+        assert T.dimensionality == kelvin.dimensionality, 'Input T must be in Kelvin!'
+    else:
+        print('Input T must be in Kelvin!') 
+    assert gas.shape == N, 'Gas shape must fit into heap shape.' # self.shape
+    celsius = temp.magnitude - 274
+    henry = lambda T: params['Henry_1'][0]  + params['Henry_2'][0] * T -  params['Henry_3'][0] * T **2 
+    liquid = henry(celsius) * gas
+    return liquid
+
+# henry = lambda T: params['Henry_1'][0]  + params['Henry_2'][0] * T -  params['Henry_3'][0] * T **2 
+# print(henry(params['T_atmos'][0]))
+
+
+
+
+N = (21, 41)
+d = (10, 20)
+
+
+x, y, mesh  =  stack( d , N )
 
 
 C_L = np.full(N, 0.006) * kg/cube # N = size of heap
@@ -184,8 +247,8 @@ CL_mol -= ox_to_alpha*alpha_formed
 #     print('Ox =', CL_mol[0][0])
 
 
-stk = stack( d, N  )
-DX, DY = space_grain(stk)
+
+DX, DY = space_grain(mesh)
 # sub_grain = 5
 # dx = DX/sub_grain
 # dy = DY/sub_grain
@@ -201,26 +264,137 @@ shape = N
 f = a_dot.magnitude
 
 # X and Y
-Y = stk[1][0][:]
-print(Y.shape)
-X = stk[1][0][:] ## need to tranpose
-print(X.shape)
+Y = mesh[1][:][:]
+X = mesh[0][:][:]
+
+
+# bc = fd.BoundaryConditions(N)
+# # Dirichlet BC
+# bc[0,:] = params['T_atmos'][0] # left 
+# bc[-1,:] = params['T_atmos'][0] # right
+# bc[:,-1] = params['T_atmos'][0] # top
+# # Neumann BC
+# bc[:, 0] = fd.FinDiff(1, DY, 1), 0 # bottom
+# # mid = round(N[0]/2) 
+# # bc[mid, 1:-1] = fd.FinDiff(0, DX, 1), 0
+
+# pde = fd.PDE(Le, f, bc)
+# u = pde.solve()
+
+# fig, ax = plt.subplots()
+# cs = plt.contourf(x,y,u.T)
+# fig.colorbar(cs,  orientation='vertical')
+# fig.show()
+
+
+    
+################### INITIAL CONDITIONS ########################################
+
+# N = (21, 41) # N = size of heap
+# d = (10, 20)
+
+# Concentrations #
+
+## liquid oxygen
+Coxl = np.full(N, 0.006) * kg/cube # Liquid
+
+
+# Gasesous oxygen
+# Coxg = np.zeros * kg/cube
+
+## Copper-sulphide
+CuS_fac = params['rho_B'][0] * params['G^0'][0]
+CuS = np.full(N, CuS_fac ) * kg/cube
+# Copper-sulphate
+Cu = np.zeros(N)
+
+# Thermodynamic #
+
+## temperature
+T = np.full(N, params['T_atmos'][0] )
+## gas density
+# gd_fac = params['eps_g'][0] 
+
+
+
+# Non-homogoneous:
+source_factor  = (params['rho_B'][0]*params['G^0'][0]) / (params['sigma_1'][0] *params['X'][0] )
+source =  source_factor * a_dot
+
+################### GAS FLOW OPERATORS #################################
+
+
+
+
+
+################### ENERGY EXCHANGE OPERATORS #################################
+
+# Conduction Operator 
+E_c = k_B * (fd.FinDiff(0, DX, 2)  + fd.FinDiff(1, DY, 2 )  ) * meter ** (-2)
+# Liquid Flow Operator
+E_L_factor = - params['q_L'][0] * params['rho_L'][0] * params['ASH_L'][0]  # liquid enthalpy flow per unit area per temperature difference. 
+E_L =  E_L_factor * fd.FinDiff(1, DY, 1) * meter ** (-1) 
+# Gas flow Operator
+E_g_factor = params['G'][0]*(  params['ASH_G'][0]  + params['ASH_V'][0] * params['H_air'][0]  ) # -params['lambda'][0] * params['H_air'][0] 
+E_g = E_g_factor * (fd.FinDiff(0, DX, 1) + fd.FinDiff(1, DY, 1) ) * meter ** (-1) 
+# Heat of reaction (source function)
+Delta_H_R = params['Delta_H_Ch'][0] + params['FPY'][0] * params['Delta_H_Py'][0]
+E_source = - Delta_H_R * source
+# Energy Exchange Operator
+Ex = E_c -  E_L - E_g
+
+################### ENERGY EXCHANGE BC's ######################################
 
 bc = fd.BoundaryConditions(N)
-bc[0,:] = 200 #fd.FinDiff(0, dx, 1), 0 # Neumann BC
-bc[:,0] = 40 + 100
-mid = round(N[0]/2)
-# bc[-1,:] = 300. - 200*Y   # Dirichlet BC
-# bc[:, 0] = 300.   # Dirichlet BC
-# bc[1:-1, -1] = fd.FinDiff(1, dy, 1), 0  # Neumann BC
 
-pde = fd.PDE(Le, f, bc)
-u = pde.solve()
+# Assuming a rectangular heap: bottom insulated & top under irrigation 
+
+## Dirichlet BC
+bc[0,:] = params['T_atmos'][0] # left 
+bc[-1,:] = params['T_atmos'][0] # right
+bc[:,-1] = params['T_L'][0] # top ########## CHANGE TO T = T_L 
+
+## Neumann BC
+bc[:, 0] = fd.FinDiff(1, DY, 1), 0 # bottom
+mid = round(N[0]/2) # middle_x
+bc[mid, 1:-1] = fd.FinDiff(0, DX, 1), 0
+
+################### ENERGY EXCHANGE PDE SOVLE #################################
+
+# Solve
+pde = fd.PDE(Ex.magnitude, E_source.magnitude, bc)
+T = pde.solve()
+
+# Plot
+fig, ax = plt.subplots()
+cs = plt.contourf(x,y,T.T)
+fig.colorbar(cs,  orientation='vertical')
+fig.show()
 
 
-plt.figure()
-plt.imshow(u, interpolation='spline16')
-plt.show()
+################### OXYGEN BALANCE OPERATORS #################################
+
+# Diffusion Operator
+Od_factor = params['eps_g'][0] * params['D_g'][0]
+Od =  Od_factor *  (  fd.FinDiff(0, DX, 2)  + fd.FinDiff(1, DY, 2 )  ) * meter ** (-2)
+# Convection Operator
+Oc = params['eps_g'][0] * (fd.FinDiff(0, DX, 1) + fd.FinDiff(1, DY, 1) ) * meter ** (-1) 
+# Oxygen Balance Operator
+#Ob = Od - Oc 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # Variable dictionary: a description of each variable used in the model
@@ -251,12 +425,6 @@ def energy_exchange():
 
 def slicer():
     '''slice heap along chosen access to get associated variables '''
-    pass
-
-
-
-
-class Heap():
     pass
 
 

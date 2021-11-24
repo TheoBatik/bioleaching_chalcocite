@@ -10,7 +10,7 @@ import numpy as np
 
 N = (6, 8)
 d = (5, 7)
-stk =  h.stack( d , N )
+stk, y, mesh =  h.stack( d , N )
 
 C_L = np.full(N, 0.2) * h.kg/h.cube
 CL_mol = C_L/h.c['M_Ox'][0]/h.mol # dividing by mol because I still need to figure out what the units of alpha should be....

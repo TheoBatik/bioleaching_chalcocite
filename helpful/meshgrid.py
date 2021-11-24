@@ -33,13 +33,20 @@ plt.figure()
 plt.plot(xs, ys.T, marker='.', color='k', linestyle='none')
 
 # Example using the contour plot
-
 x = np.arange(-5, 5, 1)
 y = np.arange(-5, 5, 1)
 xx, yy = np.meshgrid(x, y, sparse=True)
 z = np.sin(xx**2 + yy**2) / (xx**2 + yy**2)
 plt.figure()
 plt.contourf(x,y,z) # contour can handle 1-D co-ordinate arrays
+
+# Example: contour plot with legend
+fig, ax = plt.subplots()
+x, y = np.meshgrid(np.arange(10),np.arange(10))
+z = np.sqrt(x**2 + y**2)
+cs = plt.contourf(x,y,z)
+fig.colorbar(cs,  orientation='vertical')
+cs.show()
 
 # A polar co-ordinate meshgrid
 
