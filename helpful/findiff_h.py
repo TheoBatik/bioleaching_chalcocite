@@ -44,8 +44,11 @@ bc = fd.BoundaryConditions(shape)
 bc[0] = 0
 bc[-1] = 1
 
+print('f', f[1:5])
 pde = fd.PDE(L, f, bc)
 u = pde.solve()
+print('f', f[1:5])
+
 
 plt.figure()
 plt.plot(t, u)
@@ -91,8 +94,10 @@ bc[-1,:] = 300. - 200*Y  # Dirichlet BC
 bc[:, 0] = 300.   # Dirichlet BC
 bc[1:-1, -2] = fd.FinDiff(1, dy, 1), 0  # Neumann BC
 
+print(f[0][:])
 pde = fd.PDE(L, f, bc)
 u = pde.solve()
+print(f[0][:]) 
 
 plt.figure()
 plt.imshow(u, interpolation='spline16')

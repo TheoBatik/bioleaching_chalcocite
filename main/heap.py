@@ -27,6 +27,9 @@ cube = meter**3
 # Conversions
 hour = 1* ureg.hour 
 sec_in_hour = hour.to('seconds')
+day = 1 * ureg.day
+sec_in_day = day.to('seconds')
+
 
 # Define constants
 c = {
@@ -107,14 +110,13 @@ cu = np.zeros(N)
 T = np.full(N, params['T_atmos'][0] )
 ## gas density
 rho_non_ox = np.full( N, 0.24 * params['rho_B'][0].units )
-gd = Coxg + rho_non_ox
+# gd = Coxg + rho_non_ox
 
 
 ##################### Heap Class #############################################
 class Heap():
     
-    # Class Object Attributes:
-
+    ####################### Attributes ########################################
         
     ## constants
     c = {
@@ -164,57 +166,53 @@ class Heap():
         }
 
     def __init__(self, shape = (10, 10), nodes = (21, 21) ):
+        
+        ##### General ######
         self.shape = shape
         self.nodes = nodes
-        # array to keep track of all the variables over time - gets updated with heap.record method...
         self.history = np.empty(self.nodes) 
+        self.x = None
+        self.y = None
+        self.mesh = None
+        self.dx = None
+        self.dy = None
+        # self.dt = None
         
+        ###### Energy Exchange ######
+        # Conduction operators
+        self.Ec = None
+        # Liquid Flow Operator
+        self.EL_fac = None
+        self.EL = None
+        # Gas flow Operator
+        self.Eg_fac = None
+        self.Eg = None
+        # Energy Exchange Operator
+        self.Ex = None
+        # Heat of reaction (source function)
+        self.DeltaH_R = self.params['Delta_H_Ch'][0] + self.params['FPY'][0] * self.params['Delta_H_Py'][0]
         
-####################### Heap Methods #########################################     
-   
-   ## Maximum respiration rate of the bacteria 
-    def Vm(self, T):
-        ''' The maximum specific bacterial respiration rate as a function of temperature (Vm). 
-        Units are kg's (of liquid Oxygen or iron or both?) per second per number of bacteria per cubic meter. Input must be in Kelvin.'''  
-        if hasattr(T, 'dimensionality'):
-            assert T.dimensionality == kelvin.dimensionality, 'Input T must be in Kelvin!'
-            return self.params['Vm_p1'][0] * T * np.exp( -self.params['Vm_p2'][0]/T ) /  (1 + np.exp( 236 - self.params['Vm_p3'][0]/T ) )
-        else:
-            print('Input T must be in Kelvin!')
+       
+       
+    ####################### Methods #########################################     
     
-    ## Reaction rate - Michaelis-Menten kinetics with liquid Oxygen as the limiting substrate 
-    def cu_dot(self, T, coxl):
-        ''' Velocity of the combined chemical and bacterial reactions as a function of temperature (T) and liquid
-        Oxygen concentration (C_L); i.e. the rate of copper-sulfide dissolution. 
-        Valid only when Oxygen is the limiting substrate (i.e. sufficient bacteria and ferrous Fe ions).'''
-        if hasattr(coxl, 'dimensionality'):
-            assert coxl.dimensionality == self.params['K_m'][0].dimensionality, 'Concentration liquid oxygen (coxl) must be in {}!'.format(self.params['K_m'][0].units)
-            cu_dot_fac = self.params['sigma_1'][0]*self.params['X'][0]/(self.params['rho_B'][0]*self.params['G^0'][0]) 
-            return cu_dot_fac * Vm(T) * coxl/(self.params['K_m'][0] + coxl )
-        else:
-            'Concentration liquid oxygen (coxl) must be in {}!'.format(self.params['K_m'][0].units)
-            
-            
-    ## Print all parameters
-    def see_params(self, values=False):
-        ''' Print a readable list of model parameter names with descriptions (and values if True).''' 
-        for key in self.params:
-            print(key, '->', self.params[key][1])
-            if values:
-                print('; value =', self.params[key][0], '\n')   
-               
-                
-    ## Prepare heap space: return meshgrid and 1-D arrays x, y
+    # def set_dt(self, dt):
+    #     ''' Set the time step, dt'''
+    #     setattr(self, 'dt', dt)
+    
+     ## Prepare heap space: return meshgrid and 1-D arrays x, y
     def stack( self, symmetric = True, info = False ): 
         ''' Returns a numpy.meshgrid with number of lattice nodes set by N 
         and spatial dimensions set by d.'''
         d = self.shape 
         N = self.nodes
-        mesh = np.array( np.meshgrid( x, y , indexing = 'ij') )
-        self.mesh = mesh
         if symmetric:
             x = np.linspace(-d[0]/2, d[0]/2, N[0])
             y = np.linspace(0, d[1], N[1])
+            mesh = np.array( np.meshgrid( x, y , indexing = 'ij') )
+            self.mesh = mesh
+            self.x = x
+            self.y = y
             # update heap size attribute to N
             if info:
                 print( '\n Heap succesfully stacked! ')
@@ -229,53 +227,123 @@ class Heap():
             return x, y, mesh
         else:
             print('complete non-symmetric version later')
-    
-    def space_grain(self, x, y):
-        ''' Returns the differentials dx and dy, given the 1-D spatial arrays x and y.''' 
-        dx = abs(x[1] - x[0]) 
-        dy = abs(y[1] - y[0])
-        self.dx = dx
-        self.dy = dy
-        return dx, dy
           
     def plot_mesh(self, mesh):
         plt.figure()
         plt.plot(mesh[0], mesh[1], marker='.', color='k', linestyle='none')
         
-        ## Doc_string        
-    def __str__(self):
-        return "Describition of the humple:" 
+    def space_grain(self, x, y):
+        ''' Returns the differentials dx and dy, given the 1-D spatial arrays x and y.''' 
+        dx = abs(x[1] - x[0]) 
+        dy = abs(y[1] - y[0])
+        setattr(self, 'dx', dx)
+        setattr(self, 'dy', dy)
+        # self.dx = dx
+        # self.dy = dy
+        return dx, dy  
+    
+    def dissolve(self, gas, temp):
+        if hasattr(temp, 'dimensionality'):
+            assert temp.dimensionality == kelvin.dimensionality, 'Input T must be in Kelvin!'
+        else:
+            raise('Input T must be in Kelvin!') 
+        assert gas.shape == self.nodes, 'Gas shape must fit into heap shape.' # self.shape
+        celsius = temp.magnitude - 274
+        henry = lambda T: params['Henry_1'][0]  + params['Henry_2'][0] * T -  params['Henry_3'][0] * T **2 
+        liquid = henry(celsius) * gas
+        return liquid
+    
+    def init_ops(self, accuracy = 4):
+        ''' Initiate all differential operators.'''
+        if getattr(self, 'mesh') is None:
+            print('Heap must be stacked, before differential operators can be initiated.')
+        elif getattr(self, 'dx') is None or getattr(self, 'dy') is None:
+            print('Space_grain (dx, dy) required, before differential operators can be initiated.')
+        else:
+            # Energy Exchange:
+            ## Conduction Operator 
+            setattr(self, 'Ec', params['k_B'][0] * (fd.FinDiff(0, self.dx, 2, acc = accuracy)  + fd.FinDiff(1, self.dy, 2, acc = accuracy )  ) * meter ** (-2) )
+            ## Liquid Flow Operator
+            setattr(self, 'EL_fac', - self.params['q_L'][0] * self.params['rho_L'][0] * self.params['ASH_L'][0] )
+            setattr(self, 'EL',  self.EL_fac * fd.FinDiff(1, self.dy, 1, acc = accuracy) * meter ** (-1) )
+            ## Gas flow Operator
+            setattr(self, 'Eg_fac', self.params['G'][0]*(  self.params['ASH_G'][0]  + self.params['ASH_V'][0] * self.params['H_air'][0]  ) )
+            setattr(self, 'Eg',  self.Eg_fac * (fd.FinDiff(0, self.dx, 1, acc = accuracy) + fd.FinDiff(1, self.dy, 1, acc = accuracy) ) * meter ** (-1) )
+            ## Energy Exchange Operator
+            setattr(self, 'Ex', self.Ec -  self.EL - self.Eg )
+   
+   ## Maximum respiration rate of the bacteria 
+    def Vm(self, T):
+        ''' The maximum specific bacterial respiration rate as a function of temperature (Vm). 
+        Units are kg's (of liquid Oxygen or iron or both?) per second per number of bacteria per cubic meter. Input must be in Kelvin.'''  
+        if hasattr(T, 'dimensionality'):
+            assert T.dimensionality == kelvin.dimensionality, 'Input T must be in Kelvin!'
+            return  self.params['Vm_p1'][0] * T * np.exp( -self.params['Vm_p2'][0]/T ) /  (1 + np.exp( 236 - self.params['Vm_p3'][0]/T ) )
+        else:
+            print('Input T must be in Kelvin!')
+    
+    ## Reaction rate - Michaelis-Menten kinetics with liquid Oxygen as the limiting substrate 
+    def ccu_dot(self, T, coxl):
+        ''' Velocity of the combined chemical and bacterial reactions as a function of temperature (T) and liquid
+        Oxygen concentration (coxl); i.e. the rate of copper-sulfide dissolution. 
+        Valid only when Oxygen is the limiting substrate (i.e. sufficient bacteria and ferrous Fe ions).'''
+        if hasattr(coxl, 'units'):
+            assert coxl.units == self.params['K_m'][0].units, 'Concentration liquid oxygen (coxl) must be in {}!'.format(self.params['K_m'][0].units)
+            cu_dot_fac = self.params['sigma_1'][0]*self.params['X'][0]/(self.params['rho_B'][0]*self.params['G^0'][0]) 
+            return cu_dot_fac * self.Vm(T) * coxl/(self.params['K_m'][0] + coxl )
+        else:
+            print('Concentration liquid oxygen (coxl) must be in {}!'.format(self.params['K_m'][0].units) )
+                       
+    ## Print all parameters
+    def see_params(self, values=False):
+        ''' Print a readable list of model parameter names with descriptions (and values if True).''' 
+        for key in self.params:
+            print(key, '->', self.params[key][1])
+            if values:
+                print('; value =', self.params[key][0], '\n')               
+        
+
         
     def get_coxl(self, coxg, T):
         ''' Dissolution of gaseous oxygen by Henry's law at temperature T''' 
         if hasattr(T, 'dimensionality'):
             assert T.dimensionality == kelvin.dimensionality, 'Input T must be in Kelvin!'
         else:
-            print('Input T must be in Kelvin!') 
-        assert gas.shape == self.nodes, 'Shape of input gas (coxg) must be {}.'.format(self.nodes) # self.shape
-        celsius = temp.magnitude - 274
+            raise('Input T must be in Kelvin!') 
+        assert coxg.shape == getattr(self, 'nodes'), 'Shape of input gas (coxg) must be {}.'.format(self.nodes) 
+        celsius = T.magnitude - 274
         henry = lambda T: params['Henry_1'][0]  + params['Henry_2'][0] * T -  params['Henry_3'][0] * T **2 
-        liquid = henry(celsius) * gas
+        liquid = henry(celsius) * coxg
         return liquid
 
-
-##################### RUN ####################################################
-
-heap = Heap(d, N)
-T = 1 * kelvin
-Vmax = heap.Vm(T)
- 
-# a_dot = heap.cu_dot(T, )
-
-x, y, mesh = heap.stack()
-dx, dy = heap.space_grain(x, y)
-
-p = heap.params
-
-heap.plot_mesh(mesh)
-
-##################### Heap Attributes ########################################
+    # Exchange energy given source function, boundary conditions and differential operator
+    def energy_exchange(self, source, bc, operator = None ):
+        ''' Solves the energy exchange PDE, given source function (source) and boundary conditions
+        (bc). Returns the temperature distribution at current time slice.'''
+        if operator is None:
+            if getattr(self, 'Ex') is None:
+                raise( 'First initiate the differential operators by running init_ops()')
+            else: 
+                operator = self.Ex
+                print('Using default energy exchange operator.')
+        # source_copy = source
+        # bc_copy = bc
+        pde = fd.PDE(operator.magnitude, source.magnitude, bc)
+        # print('source_copy 1', source_copy.magnitude[0][1:5])
+        # print('source 1', source.magnitude[0][1:5])
+        T = pde.solve()
+        # print('source_copy 2', source_copy.magnitude[0][1:5])
+        # print('source 2', source.magnitude[0][1:5])
+        # print('T', T[0][:])
+        # print('test 1', source == source_copy)
+        # print('test 2', bc == bc_copy)
+        return T
     
+    ## Doc_string        
+    def __str__(self):
+        return "Describition of the humple:" 
+
+   
 
 
 # Store differential operators in a dictionary?
@@ -365,7 +433,7 @@ def space_grain(mesh):
         dy = abs(mesh[1][0][0] - mesh[1][0][1])
         return dx, dy
       
-def plt_mesh(mesh):
+def plot_mesh(mesh):
     plt.figure()
     plt.plot(mesh[0], mesh[1], marker='.', color='k', linestyle='none')
 
@@ -378,7 +446,7 @@ and temperature T(x, y, t). '''
 
 def dissolve(gas, temp):
     if hasattr(temp, 'dimensionality'):
-        assert T.dimensionality == kelvin.dimensionality, 'Input T must be in Kelvin!'
+        assert temp.dimensionality == kelvin.dimensionality, 'Input T must be in Kelvin!'
     else:
         print('Input T must be in Kelvin!') 
     assert gas.shape == N, 'Gas shape must fit into heap shape.' # self.shape
@@ -414,51 +482,43 @@ ox_to_alpha = 2.5/2 # Oxygen to Cu2SO4 based on the stoiciometric coefficients
 CL_mol -= ox_to_alpha*alpha_formed
 
 
-# for i in range(0,10):
-#     alpha += alpha_formed
-#     CL_mol -= ox_to_alpha*alpha_formed
-#     print('alpha =', alpha[0][0])
-#     print('Ox =', CL_mol[0][0])
+heap = Heap(d, N)
+x, y, mesh = heap.stack()
+DX, DY = heap.space_grain(x, y)
+heap.init_ops(6)
 
 
-
-DX, DY = space_grain(mesh)
-# sub_grain = 5
-# dx = DX/sub_grain
-# dy = DY/sub_grain
-
-# axis 0 = x
-# axis 1 = y
-# axis 2 = t # no need for third access, just use a_dot()
 
 k_B = params['k_B'][0]
 # Energy Exchange Operator
-Le = k_B * (fd.FinDiff(0, DX, 2) + fd.FinDiff(1, DY, 2 ) )
-shape = N
-f = a_dot.magnitude
+Ec = k_B * (fd.FinDiff(0, DX, 2) + fd.FinDiff(1, DY, 2 ) )
 
-# X and Y
-Y = mesh[1][:][:]
-X = mesh[0][:][:]
+Ex = -1 *  heap.EL.magnitude
+
+# a_dot = np.zeros(N)
+# midx = round(N[0]/2)
+# midy = round(N[1]/2)
+# a_dot[midx:midx + 1, midy: midy +1 ] = 0.00000000000001  # / meter ** 3 / second
+f =  a_dot.magnitude
 
 
-# bc = fd.BoundaryConditions(N)
-# # Dirichlet BC
-# bc[0,:] = params['T_atmos'][0] # left 
-# bc[-1,:] = params['T_atmos'][0] # right
-# bc[:,-1] = params['T_atmos'][0] # top
-# # Neumann BC
-# bc[:, 0] = fd.FinDiff(1, DY, 1), 0 # bottom
-# # mid = round(N[0]/2) 
-# # bc[mid, 1:-1] = fd.FinDiff(0, DX, 1), 0
 
-# pde = fd.PDE(Le, f, bc)
-# u = pde.solve()
+bc = fd.BoundaryConditions(N)
+# Dirichlet BC
+bc[0,:] = params['T_atmos'][0] # left 
+bc[-1,:] = params['T_atmos'][0] # right
+bc[:,-1] = params['T_L'][0] # top
+# Neumann BC
+bc[:, 0] = fd.FinDiff(1, DY, 1), 0 # bottom
 
-# fig, ax = plt.subplots()
-# cs = plt.contourf(x,y,u.T)
-# fig.colorbar(cs,  orientation='vertical')
-# fig.show()
+
+pde = fd.PDE(Ex, f, bc)
+u = pde.solve()
+
+fig, ax = plt.subplots()
+cs = plt.contourf(x,y,u.T)
+fig.colorbar(cs,  orientation='vertical')
+fig.show()
 
 
     
@@ -468,73 +528,15 @@ X = mesh[0][:][:]
 
 
 
+# ################### OXYGEN BALANCE OPERATORS #################################
 
-
-
-# Non-homogoneous:
-source_factor  = (params['rho_B'][0]*params['G^0'][0]) / (params['sigma_1'][0] *params['X'][0] )
-source =  source_factor * a_dot
-
-################### GAS FLOW OPERATORS #################################
-
-
-
-
-
-################### ENERGY EXCHANGE OPERATORS #################################
-
-# Conduction Operator 
-E_c = k_B * (fd.FinDiff(0, DX, 2)  + fd.FinDiff(1, DY, 2 )  ) * meter ** (-2)
-# Liquid Flow Operator
-E_L_factor = - params['q_L'][0] * params['rho_L'][0] * params['ASH_L'][0]  # liquid enthalpy flow per unit area per temperature difference. 
-E_L =  E_L_factor * fd.FinDiff(1, DY, 1) * meter ** (-1) 
-# Gas flow Operator
-E_g_factor = params['G'][0]*(  params['ASH_G'][0]  + params['ASH_V'][0] * params['H_air'][0]  ) # -params['lambda'][0] * params['H_air'][0] 
-E_g = E_g_factor * (fd.FinDiff(0, DX, 1) + fd.FinDiff(1, DY, 1) ) * meter ** (-1) 
-# Heat of reaction (source function)
-Delta_H_R = params['Delta_H_Ch'][0] + params['FPY'][0] * params['Delta_H_Py'][0]
-E_source = - Delta_H_R * source
-# Energy Exchange Operator
-Ex = E_c -  E_L - E_g
-
-################### ENERGY EXCHANGE BC's ######################################
-
-bc = fd.BoundaryConditions(N)
-
-# Assuming a rectangular heap: bottom insulated & top under irrigation 
-
-## Dirichlet BC
-bc[0,:] = params['T_atmos'][0] # left 
-bc[-1,:] = params['T_atmos'][0] # right
-bc[:,-1] = params['T_L'][0] # top ########## CHANGE TO T = T_L 
-
-## Neumann BC
-bc[:, 0] = fd.FinDiff(1, DY, 1), 0 # bottom
-mid = round(N[0]/2) # middle_x
-bc[mid, 1:-1] = fd.FinDiff(0, DX, 1), 0
-
-################### ENERGY EXCHANGE PDE SOVLE #################################
-
-# Solve
-pde = fd.PDE(Ex.magnitude, E_source.magnitude, bc)
-T = pde.solve()
-
-# Plot
-fig, ax = plt.subplots()
-cs = plt.contourf(x,y,T.T)
-fig.colorbar(cs,  orientation='vertical')
-fig.show()
-
-
-################### OXYGEN BALANCE OPERATORS #################################
-
-# Diffusion Operator
-Od_factor = params['eps_g'][0] * params['D_g'][0]
-Od =  Od_factor *  (  fd.FinDiff(0, DX, 2)  + fd.FinDiff(1, DY, 2 )  ) * meter ** (-2)
-# Convection Operator
-Oc = params['eps_g'][0] * (fd.FinDiff(0, DX, 1) + fd.FinDiff(1, DY, 1) ) * meter ** (-1) 
-# Oxygen Balance Operator
-#Ob = Od - Oc 
+# # Diffusion Operator
+# Od_factor = params['eps_g'][0] * params['D_g'][0]
+# Od =  Od_factor *  (  fd.FinDiff(0, DX, 2)  + fd.FinDiff(1, DY, 2 )  ) * meter ** (-2)
+# # Convection Operator
+# Oc = params['eps_g'][0] * (fd.FinDiff(0, DX, 1) + fd.FinDiff(1, DY, 1) ) * meter ** (-1) 
+# # Oxygen Balance Operator
+# #Ob = Od - Oc 
 
 
 
@@ -551,23 +553,20 @@ Oc = params['eps_g'][0] * (fd.FinDiff(0, DX, 1) + fd.FinDiff(1, DY, 1) ) * meter
 
 
 
-# Variable dictionary: a description of each variable used in the model
-var_dict = {
-    'alpha':'The product balance resulting from the combined chemical and bacterial reactions', 
-    'alpha_dot':alpha_dot.__doc__,
-    'C_L':'The concentration of liquid Oxygen',
-    'Vm':Vm.__doc__
-    }
+# # Variable dictionary: a description of each variable used in the model
+# var_dict = {
+#     'alpha':'The product balance resulting from the combined chemical and bacterial reactions', 
+#     'alpha_dot':alpha_dot.__doc__,
+#     'C_L':'The concentration of liquid Oxygen',
+#     'Vm':Vm.__doc__
+#     }
 
 
-def gas_flow():
-    pass
+# def gas_flow():
+#     pass
 
-def oxygen_balance():
-    pass
-
-def energy_exchange():
-    pass
+# def oxygen_balance():
+#     pass
 
 
 
@@ -577,16 +576,17 @@ def energy_exchange():
 
 
 
-def slicer():
-    '''slice heap along chosen access to get associated variables '''
-    pass
+
+# def slicer():
+#     '''slice heap along chosen access to get associated variables '''
+#     pass
 
 
 
 
 
-def how_to_run():
-    print('Run using script x... TBC')
+# def how_to_run():
+#     print('Run using script x... TBC')
 
 # if __name__ == "__main__":
 #     how_to_run()

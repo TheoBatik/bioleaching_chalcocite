@@ -46,7 +46,7 @@ x, y = np.meshgrid(np.arange(10),np.arange(10))
 z = np.sqrt(x**2 + y**2)
 cs = plt.contourf(x,y,z)
 fig.colorbar(cs,  orientation='vertical')
-cs.show()
+fig.show()
 
 # A polar co-ordinate meshgrid
 

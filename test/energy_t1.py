@@ -109,7 +109,7 @@ bc = fd.BoundaryConditions(N)
 # Dirichlet BC
 bc[0,:] = h.params['T_atmos'][0] # left 
 bc[-1,:] = h.params['T_atmos'][0] # right
-bc[:,-1] = h.params['T_atmos'][0] # top
+bc[:,-1] = h.params['T_L'][0] # top
 # Neumann BC
 bc[:, 0] = fd.FinDiff(1, DY, 1), 0 # bottom
 mid = round(N[0]/2) 
