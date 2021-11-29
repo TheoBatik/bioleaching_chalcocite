@@ -138,7 +138,7 @@ class Heap():
         'T_L':[298*kelvin, 'Liquid Temperature'],
         'q_L':[1.4*10**(-6)*cube/(second*area), 'Volume flow rate of Liquid per unit area'],
         'O2g':[0.26*kg/cube, 'Oxygen concentration at T_atmos and P_atmos'],
-        'sigma_1':[ c['M_Ch'][0]*c['M_Py'][0]/( (5/2)*c['M_Ox'][0]*c['M_Py'][0] + (7/2)*c['M_Ox'][0]*c['M_Ch'][0] ), 'Stoichimoetric factor (see bioleaching model by Casas et al)' ],
+        'sigma_1':[ c['M_Ch'][0]*c['M_Py'][0]/( (5/2)*c['M_Ox'][0]*c['M_Py'][0] + (7/2)* params['FPY'][0] * c['M_Ox'][0]*c['M_Ch'][0] ), 'Stoichimoetric factor (see bioleaching model by Casas et al)' ],
         'Vm_p1':[6.8*10**(-13)*kg/(second*kelvin*cube), 'Bacterial respiration rate - param 1'],
         'Vm_p2':[7000*kelvin, 'Bacterial respiration rate - param 2'],
         'Vm_p3':[74000*kelvin, 'Bacterial respiration rate - param 3'],
@@ -262,16 +262,16 @@ class Heap():
         else:
             # Energy Exchange:
             ## Conduction Operator 
-            setattr(self, 'Ec', params['k_B'][0] * (fd.FinDiff(0, self.dx, 2, acc = accuracy)  + fd.FinDiff(1, self.dy, 2, acc = accuracy )  ) * meter ** (-2) )
+            setattr(self, 'Ec', self.params['k_B'][0] * (fd.FinDiff(0, self.dx, 2, acc = accuracy)  + fd.FinDiff(1, self.dy, 2, acc = accuracy )  ) * meter ** (-2) )
             ## Liquid Flow Operator
-            setattr(self, 'EL_fac', - self.params['q_L'][0] * self.params['rho_L'][0] * self.params['ASH_L'][0] )
+            setattr(self, 'EL_fac', -  self.params['q_L'][0] * self.params['rho_L'][0] * self.params['ASH_L'][0] )
             setattr(self, 'EL',  self.EL_fac * fd.FinDiff(1, self.dy, 1, acc = accuracy) * meter ** (-1) )
             ## Gas flow Operator
             setattr(self, 'Eg_fac', self.params['G'][0]*(  self.params['ASH_G'][0]  + self.params['ASH_V'][0] * self.params['H_air'][0]  ) )
             setattr(self, 'Eg',  self.Eg_fac * (fd.FinDiff(0, self.dx, 1, acc = accuracy) + fd.FinDiff(1, self.dy, 1, acc = accuracy) ) * meter ** (-1) )
             ## Energy Exchange Operator
-            setattr(self, 'Ex', self.Ec -  self.EL - self.Eg )
-   
+            setattr(self, 'Ex', self.Ec -  self.EL - self.Eg ) # Check minus sign on EL
+ 
    ## Maximum respiration rate of the bacteria 
     def Vm(self, T):
         ''' The maximum specific bacterial respiration rate as a function of temperature (Vm). 
@@ -460,8 +460,8 @@ def dissolve(gas, temp):
 
 
 
-N = (21, 41)
-d = (10, 20)
+N = (101, 31)
+d = (10, 3)
 
 
 x, y, mesh  =  stack( d , N )
@@ -485,7 +485,7 @@ CL_mol -= ox_to_alpha*alpha_formed
 heap = Heap(d, N)
 x, y, mesh = heap.stack()
 DX, DY = heap.space_grain(x, y)
-heap.init_ops(6)
+heap.init_ops(4)
 
 
 
@@ -493,13 +493,15 @@ k_B = params['k_B'][0]
 # Energy Exchange Operator
 Ec = k_B * (fd.FinDiff(0, DX, 2) + fd.FinDiff(1, DY, 2 ) )
 
-Ex = -1 *  heap.EL.magnitude
+Ex =   heap.EL.magnitude
 
 # a_dot = np.zeros(N)
 # midx = round(N[0]/2)
 # midy = round(N[1]/2)
 # a_dot[midx:midx + 1, midy: midy +1 ] = 0.00000000000001  # / meter ** 3 / second
-f =  a_dot.magnitude
+
+Esource_fac  = - heap.DeltaH_R * (heap.params['rho_B'][0]* heap.params['G^0'][0]) / (heap.params['sigma_1'][0] *  heap.params['X'][0] )
+f =  a_dot.magnitude * Esource_fac.magnitude  * 1000000
 
 
 
@@ -511,9 +513,11 @@ bc[:,-1] = params['T_L'][0] # top
 # Neumann BC
 bc[:, 0] = fd.FinDiff(1, DY, 1), 0 # bottom
 
-
+print('BEFORE' , a_dot)
 pde = fd.PDE(Ex, f, bc)
 u = pde.solve()
+print('\n AFTER', a_dot)
+
 
 fig, ax = plt.subplots()
 cs = plt.contourf(x,y,u.T)
