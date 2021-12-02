@@ -101,10 +101,11 @@ class Heap():
         
         # Time
         self.dt = None
-        # self.Te = fd.FindDiff()
+        self.Te = None
         
         ##### Energy Exchange Operators ######
         
+        self.Te_fac = None # fix        
         # Conduction operators
         self.Ec = None
         # Liquid Flow Operator
@@ -120,7 +121,8 @@ class Heap():
        
         ##### Derived paraeters  ######
         self.params['sigma_1'][0] = self.c['M_Ch'][0]*self.c['M_Py'][0]/( (5/2)*self.c['M_Ox'][0]*self.c['M_Py'][0] + (7/2)* self.params['FPY'][0] * self.c['M_Ox'][0]*self.c['M_Ch'][0] )
-        self.coxg_fac = self.params['Ox_in_air'][0] * self.params['rho_air'][0] * kg/cube
+        self.coxg_fac = self.params['Ox_in_air'][0] * self.params['rho_air'][0] * kg/cube # add to params dictionary 
+        self.source_fac = self.params['rho_B'][0] * self.params['G^0'][0] / ( self.params['sigma_1'][0] *  self.params['X'][0] ) # add to params dictionary 
         
        
     ####################### Methods ##########################################     
@@ -183,9 +185,9 @@ class Heap():
     def init_ops(self, accuracy = 4):
         ''' Initiate all differential operators.'''
         if getattr(self, 'mesh') is None:
-            print('Heap must be stacked, before differential operators can be initiated.')
-        elif getattr(self, 'dx') is None or getattr(self, 'dy') is None:
-            print('Space_grain (dx, dy) required, before differential operators can be initiated.')
+            raise('Heap must be stacked, before differential operators can be initiated.')
+        elif getattr(self, 'dx') is None or getattr(self, 'dy') is None or getattr(self, 'dt') is None:
+            raise('Differentials (dx, dy, dt) required before operators can be initiated.')
         else:
             # Energy Exchange:
             ## Conduction Operator 
@@ -198,6 +200,19 @@ class Heap():
             setattr(self, 'Eg',  self.Eg_fac * (fd.FinDiff(0, self.dx, 1, acc = accuracy) + fd.FinDiff(1, self.dy, 1, acc = accuracy) ) * meter ** (-1) )
             ## Energy Exchange Operator
             setattr(self, 'Ex', self.Ec -  self.EL - self.Eg ) # Check minus sign on EL
+            # Time-evolution operator:
+            setattr(self, 'Te_fac',  self.params['rho_B'][0] * self.params['ASH_S'][0] )
+            setattr(self, 'Te',  self.Te_fac * fd.FinDiff(2, self.dt, 1, acc = accuracy) * second ** (-1) )
+        
+# ################### OXYGEN BALANCE OPERATORS #################################
+
+# # Diffusion Operator
+# Od_factor = params['eps_g'][0] * params['D_g'][0]
+# Od =  Od_factor *  (  fd.FinDiff(0, DX, 2)  + fd.FinDiff(1, DY, 2 )  ) * meter ** (-2)
+# # Convection Operator
+# Oc = params['eps_g'][0] * (fd.FinDiff(0, DX, 1) + fd.FinDiff(1, DY, 1) ) * meter ** (-1) 
+# # Oxygen Balance Operator
+# #Ob = Od - Oc 
 
         
         
@@ -275,15 +290,6 @@ class Heap():
 
 
 
-# ################### OXYGEN BALANCE OPERATORS #################################
-
-# # Diffusion Operator
-# Od_factor = params['eps_g'][0] * params['D_g'][0]
-# Od =  Od_factor *  (  fd.FinDiff(0, DX, 2)  + fd.FinDiff(1, DY, 2 )  ) * meter ** (-2)
-# # Convection Operator
-# Oc = params['eps_g'][0] * (fd.FinDiff(0, DX, 1) + fd.FinDiff(1, DY, 1) ) * meter ** (-1) 
-# # Oxygen Balance Operator
-# #Ob = Od - Oc 
 
 
 # # Variable dictionary: a description of each variable used in the model
