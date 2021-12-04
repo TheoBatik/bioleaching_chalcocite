@@ -72,7 +72,7 @@ coxl = heap.dissolve(coxg, T_opt)
 
 # Maximum rate of Copper-Sulfide dissolution => max rate of heat generation
 alpha_dot = heap.ccu_dot(T_opt, coxl) 
-alpha_dot = alpha_dot.to(f'1/meter**3/{t_step}')
+alpha_dot = alpha_dot.to(f'1/meter**3/{t_step}') 
 # alpha_dot = np.zeros(heap.nodes)
 # midx = round(heap.nodes[0]/2)
 # midy = round(heap.nodes[1]/2)
