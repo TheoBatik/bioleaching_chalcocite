@@ -2,8 +2,8 @@
 
 ## References
 
-[![DOI](https://upload.wikimedia.org/wikipedia/commons/6/6a/ScienceDirect_logo.svg)](https://doi.org/10.1016/S1572-4409(99)80045-5)
-[![DOI](https://upload.wikimedia.org/wikipedia/commons/6/6a/ScienceDirect_logo.svg)](https://doi.org/10.1016/S0304-386X(00)00119-5)
+[![DOI]()](https://doi.org/10.1016/S1572-4409(99)80045-5)
+[![DOI]()](https://doi.org/10.1016/S0304-386X(00)00119-5)
 
 ## Instructions
 
