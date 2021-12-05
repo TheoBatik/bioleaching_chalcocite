@@ -10,7 +10,7 @@ Pseudo-Test unit to incorporate dimensionless PDE to increase stability.
 import findiff as fd
 import matplotlib.pyplot as plt
 import numpy as np
-import os
+# import os
 # cwd = os.getcwd()
 # d_main = cwd + '\\main'
 # os.chdir(d_main)
@@ -32,12 +32,13 @@ kJ = heap.kJ
 # Time
 Delt = 3 # Full duration of simulation: choose time-step units below
 # Set time step units:
-t_step_option = 0
-t_steps = [ 'second', 'day', 'week', 'month', 'year'] 
+t_step_option = 1
+t_steps = [ 'second', 'day', 'week', 'month', 'year'] # month and year do not seem to work well...
 t_step = t_steps[t_step_option]
 
 # Finite difference accuracy 
 acc = 4
+
 ##### INIT HEAP ###############################################################
 
 # Dimensions D = (W, H, Delt):
@@ -46,8 +47,8 @@ H = 3 # Height -> y
 D = (W, H, Delt) 
 
 # Mesh and differentials:
-scale_xy = 5
-scale_t = 2
+scale_xy = 10
+scale_t = 5
 N = (W * scale_xy + 1, H*scale_xy + 1, Delt * scale_t + 1) # Mesh shape
 hp = heap.Heap( D, N ) # Init heap
 x, y, t, mesh = hp.stack() # Get mesh
@@ -98,6 +99,7 @@ Ec = hp.Ec_fac_dim * hp.d2T_dXY2
 El = hp.El_fac_dim * hp.dT_dY
 Te = hp.Te_fac_dim * hp.dT_dtau
 Ex = Ec - El - Te
+# Ex = Ex.to(f'kilojoule/kelvin/meter**3/{t_step}') 
 
 # Boundary conditions:
 ## Dirichlet BC
@@ -138,7 +140,7 @@ cbar.ax.get_yaxis().labelpad = 15
 fig.show()
 
 
-T[:, :, 0] == T[:, :, -1]
+print(T[:, :, 0] == T[:, :, -1])
 
 
 
