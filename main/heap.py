@@ -118,12 +118,38 @@ class Heap():
         self.Ex = None
         # Heat of reaction
         self.DeltaH_R = self.params['Delta_H_Ch'][0] + self.params['FPY'][0] * self.params['Delta_H_Py'][0]
+        
+        ##### Dimensionless PDEs ######
+        
+        # Operators
+        self.d2T_dX2 = None
+        self.d2T_dY2 = None
+        self.d2T_dXY2 = None
+        self.dT_dxa1 = None
+        self.dT_dxb2 = None
+        self.dT_dtau = None
+        
+        # Characteristic properties
+        self.T_c = self.params['T_atmos'][0]
+        self.x_c = self.dim[0] * np.sqrt( self.params['k_B'][0].magnitude ) * meter
+        self.y_c = self.x_c # self.dim[1] * meter
+        self.t_c = self.params['rho_B'][0].magnitude * self.params['ASH_S'][0].magnitude * self.T_c.magnitude * second
        
         ##### Derived paraeters  ######
+        
         self.params['sigma_1'][0] = self.c['M_Ch'][0]*self.c['M_Py'][0]/( (5/2)*self.c['M_Ox'][0]*self.c['M_Py'][0] + (7/2)* self.params['FPY'][0] * self.c['M_Ox'][0]*self.c['M_Ch'][0] )
         self.coxg_fac = self.params['Ox_in_air'][0] * self.params['rho_air'][0] * kg/cube # add to params dictionary 
         self.source_fac = self.params['rho_B'][0] * self.params['G^0'][0] / ( self.params['sigma_1'][0] *  self.params['X'][0] ) # add to params dictionary 
         
+        # Differential Operator Coefficients
+        self.Ec_fac_dim = None
+        self.El_fac_dim = None
+        self.Te_fac_dim = None
+        # self.X1_EE = None
+        # self.Y1_EE = None
+        # self.tau_EE = None
+        setattr(self, 'Te_fac',  self.params['rho_B'][0] * self.params['ASH_S'][0] )
+        setattr(self, 'EL_fac', -  self.params['q_L'][0] * self.params['rho_L'][0] * self.params['ASH_L'][0] )
        
     ####################### Methods ##########################################     
 
@@ -182,27 +208,39 @@ class Heap():
         return liquid
     
     
-    def init_ops(self, accuracy = 4):
-        ''' Initiate all differential operators.'''
+    def init_ops(self, accuracy = 4, dimless = True):
+        ''' Initiate all differential operators.'''          
         if getattr(self, 'mesh') is None:
             raise('Heap must be stacked, before differential operators can be initiated.')
         elif getattr(self, 'dx') is None or getattr(self, 'dy') is None or getattr(self, 'dt') is None:
             raise('Differentials (dx, dy, dt) required before operators can be initiated.')
         else:
-            # Energy Exchange:
-            ## Conduction Operator 
-            setattr(self, 'Ec', self.params['k_B'][0] * (fd.FinDiff(0, self.dx, 2, acc = accuracy)  + fd.FinDiff(1, self.dy, 2, acc = accuracy )  ) * meter ** (-2) )
-            ## Liquid Flow Operator
-            setattr(self, 'EL_fac', -  self.params['q_L'][0] * self.params['rho_L'][0] * self.params['ASH_L'][0] )
-            setattr(self, 'EL',  self.EL_fac * fd.FinDiff(1, self.dy, 1, acc = accuracy) * meter ** (-1) )
-            ## Gas flow Operator
-            setattr(self, 'Eg_fac', self.params['G'][0]*(  self.params['ASH_G'][0]  + self.params['ASH_V'][0] * self.params['H_air'][0]  ) )
-            setattr(self, 'Eg',  self.Eg_fac * (fd.FinDiff(0, self.dx, 1, acc = accuracy) + fd.FinDiff(1, self.dy, 1, acc = accuracy) ) * meter ** (-1) )
-            ## Energy Exchange Operator
-            setattr(self, 'Ex', self.Ec -  self.EL - self.Eg ) # Check minus sign on EL
-            # Time-evolution operator:
-            setattr(self, 'Te_fac',  self.params['rho_B'][0] * self.params['ASH_S'][0] )
-            setattr(self, 'Te',  self.Te_fac * fd.FinDiff(2, self.dt, 1, acc = accuracy) * second ** (-1) )
+            if dimless:
+                # Differential Operators
+                setattr(self, 'd2T_dX2', fd.FinDiff(0, self.dx, 2, acc = accuracy) )
+                setattr(self, 'd2T_dY2', fd.FinDiff(1, self.dy, 2, acc = accuracy ) )
+                setattr(self, 'd2T_dXY2', self.d2T_dX2 + self.d2T_dY2)
+                setattr(self, 'dT_dX', fd.FinDiff(0, self.dx, 1, acc = accuracy) )
+                setattr(self, 'dT_dY', fd.FinDiff(1, self.dy, 1, acc = accuracy ) ) 
+                setattr(self, 'dT_dtau',  fd.FinDiff(2, self.dy, 1, acc = accuracy ) ) 
+                # Parameters
+                setattr(self, 'Ec_fac_dim', self.params['k_B'][0] * self.T_c * ( 1 / self.x_c)**2 ) 
+                setattr(self, 'El_fac_dim',  self.EL_fac * (self.T_c/self.y_c) )  
+                setattr(self, 'Te_fac_dim',  self.Te_fac * self.T_c / self.t_c) 
+            else:
+                # Energy Exchange:
+                ## Conduction Operator 
+                setattr(self, 'Ec', self.params['k_B'][0] * (fd.FinDiff(0, self.dx, 2, acc = accuracy)  + fd.FinDiff(1, self.dy, 2, acc = accuracy )  ) * meter ** (-2) )
+                ## Liquid Flow Operator
+                setattr(self, 'EL',  self.EL_fac * fd.FinDiff(1, self.dy, 1, acc = accuracy) * meter ** (-1) )
+                ## Gas flow Operator
+                setattr(self, 'Eg_fac', self.params['G'][0]*(  self.params['ASH_G'][0]  + self.params['ASH_V'][0] * self.params['H_air'][0]  ) )
+                setattr(self, 'Eg',  self.Eg_fac * (fd.FinDiff(0, self.dx, 1, acc = accuracy) + fd.FinDiff(1, self.dy, 1, acc = accuracy) ) * meter ** (-1) )
+                ## Energy Exchange Operator
+                setattr(self, 'Ex', self.Ec -  self.EL - self.Eg ) # Check minus sign on EL
+                # Time-evolution operator:
+                setattr(self, 'Te',  self.Te_fac * fd.FinDiff(2, self.dt, 1, acc = accuracy) * second ** (-1) )
+            
         
 # ################### OXYGEN BALANCE OPERATORS #################################
 
