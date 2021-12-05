@@ -2,8 +2,18 @@
 
 ## References
 
-1) https://www.sciencedirect.com/science/article/abs/pii/S1572440999800455
-2) https://www.sciencedirect.com/science/article/abs/pii/S0304386X00001195
+[![DOI](https://upload.wikimedia.org/wikipedia/commons/6/6a/ScienceDirect_logo.svg)](https://doi.org/10.1016/S1572-4409(99)80045-5)
+[![DOI](https://upload.wikimedia.org/wikipedia/commons/6/6a/ScienceDirect_logo.svg)](https://doi.org/10.1016/S0304-386X(00)00119-5)
+
+## Instructions
+
+1) Init Heap( d, N )
+2) Stack Heap => x, y, t, mesh
+3) Set boundary conditions
+4) Call diffs() => dx, dy, dt
+5) Call heap.init_ops( accuracy )
+6) Define PDE diff. operator
+7) Call heap.energy_exchange(source, bc, operator)
 
 ## The model attempts to integrate the following processes:
 
