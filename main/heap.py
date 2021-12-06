@@ -5,7 +5,6 @@ import pint
 import matplotlib.pyplot as plt
 import findiff as fd
 
-
 ##################### UNITS ##################################################
 
 # Initialise the standard Pint Unit Registry
@@ -152,7 +151,6 @@ class Heap():
         setattr(self, 'EL_fac', -  self.params['q_L'][0] * self.params['rho_L'][0] * self.params['ASH_L'][0] )
        
     ####################### Methods ##########################################     
-
     
     ## Prepare heap space: return meshgrid and 1-D arrays x, y, t
     def stack( self, symmetric = True, info = False ): 
@@ -179,7 +177,6 @@ class Heap():
             print( '\n\t Mesh shape:'  )
             print( '\t'*2,  'ms = (Nx, Ny , Nt) = {}'.format(N)) 
         return x, y, t, mesh
-
           
     def plot_mesh(self, mesh):
         plt.figure()
@@ -205,8 +202,7 @@ class Heap():
         celsius = temp.magnitude - 274
         henry = lambda T: self.params['Henry_1'][0]  + self.params['Henry_2'][0] * T -  self.params['Henry_3'][0] * T **2 
         liquid = henry(celsius) * gas
-        return liquid
-    
+        return liquid   
     
     def init_ops(self, accuracy = 4, dimless = True):
         ''' Initiate all differential operators.'''          
@@ -239,8 +235,7 @@ class Heap():
                 ## Energy Exchange Operator
                 setattr(self, 'Ex', self.Ec -  self.EL - self.Eg ) # Check minus sign on EL
                 # Time-evolution operator:
-                setattr(self, 'Te',  self.Te_fac * fd.FinDiff(2, self.dt, 1, acc = accuracy) * second ** (-1) )
-            
+                setattr(self, 'Te',  self.Te_fac * fd.FinDiff(2, self.dt, 1, acc = accuracy) * second ** (-1) )           
         
 # ################### OXYGEN BALANCE OPERATORS #################################
 
@@ -250,9 +245,7 @@ class Heap():
 # # Convection Operator
 # Oc = params['eps_g'][0] * (fd.FinDiff(0, DX, 1) + fd.FinDiff(1, DY, 1) ) * meter ** (-1) 
 # # Oxygen Balance Operator
-# #Ob = Od - Oc 
-
-        
+# #Ob = Od - Oc    
         
    ## Maximum respiration rate of the bacteria 
     def Vm(self, T):
@@ -282,11 +275,7 @@ class Heap():
         for key in self.params:
             print(key, '->', self.params[key][1])
             if values:
-                print('; value =', self.params[key][0], '\n')               
-        
-
-        
-    
+                print('; value =', self.params[key][0], '\n')                         
 
     # Exchange energy given source function, boundary conditions and differential operator
     def energy_exchange(self, source, bc, operator = None ):
@@ -317,37 +306,12 @@ class Heap():
             if methods:
                 s += ' = ' + m.__doc__
         return s
-            
-
-
-
-    
-
-
-
-
-
-
-
-
-# # Variable dictionary: a description of each variable used in the model
-# var_dict = {
-#     'alpha':'The product balance resulting from the combined chemical and bacterial reactions', 
-#     'alpha_dot':alpha_dot.__doc__,
-#     'C_L':'The concentration of liquid Oxygen',
-#     'Vm':Vm.__doc__
-#     }
-
-
-def gas_flow():
-    pass
-
-def oxygen_balance():
-    pass
-
-# def how_to_run():
-#     print('Run using script x... TBC')
-
+     
+# def main():
+#     import run
+       
 # if __name__ == "__main__":
-#     how_to_run()
+#     main()
+
+
 

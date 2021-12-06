@@ -17,9 +17,9 @@ import findiff as fd
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-# cwd = os.getcwd()
-# d_main = cwd + '\\main'
-# os.chdir(d_main)
+cwd = os.getcwd()
+main = ''
+os.chdir(cwd + main)
 import heap
 
 
